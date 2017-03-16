@@ -6,3 +6,8 @@ skipped: 591 (5)
 dev:
 duplicates: 16445 (0.37)
 skipped: 77 (0)
+
+
+full > 10:
+duplicates: 148726 (0.37)
+skipped: 2413 (1157)

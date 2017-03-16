@@ -2,7 +2,7 @@ import tensorflow as tf
 import numpy as np
 
 
-class CNN3(object):
+class CNN4(object):
     """
     A CNN for text classification.
     Uses an embedding layer, followed by a convolutional, max-pooling and softmax layer.
@@ -76,12 +76,15 @@ class CNN3(object):
         h_name = "h" + qid
         conv_name = "conv" + qid
         pool_name = "pool" + qid
+        norm_name = "norm" + qid
 
         with tf.variable_scope("inference", reuse=reuse):
             # Create a convolution + maxpool layer for each filter size
             pooled_outputs = []
             for i, filter_size in enumerate(filter_sizes):
                 with tf.name_scope("conv-maxpool-%s-%s" % (qid, filter_size)):
+                    print "embeddings: ", embeddings.get_shape()
+
                     # Convolution Layer
                     filter_shape = [filter_size, embedding_size, 1, num_filters]
                     W = tf.Variable(tf.truncated_normal(filter_shape, stddev=0.1), name=W_name)
@@ -93,16 +96,53 @@ class CNN3(object):
                         padding="VALID",
                         name=conv_name)
 
+                    print "W: ", W.get_shape()
+                    print "conv: ", conv.get_shape()
+
+
                     # Apply nonlinearity
                     h = tf.nn.relu(tf.nn.bias_add(conv, b), name=h_name)
 
                     # Maxpooling over the outputs
                     pooled = tf.nn.max_pool(
                         h,
-                        ksize=[1, sequence_length - filter_size + 1, 1, 1],
-                        strides=[1, 1, 1, 1],
+                        ksize=[1, 3, 1, 1],
+                        strides=[1, 2, 1, 1],
                         padding='VALID',
                         name=pool_name)
+                    print "pooled: ", pooled.get_shape()
+
+                    # norm1
+                    norm1 = tf.nn.lrn(pooled, 4, bias=1.0, alpha=0.001 / 9.0, beta=0.75,
+                                      name=norm_name)
+
+                with tf.name_scope("conv-maxpool2-%s-%s" % (qid, filter_size)):
+                    # Convolution Layer
+                    filter_shape = [filter_size, 1, num_filters, num_filters]
+                    W = tf.Variable(tf.truncated_normal(filter_shape, stddev=0.1), name=W_name + "2")
+                    b = tf.Variable(tf.constant(0.1, shape=[num_filters]), name=b_name + "2")
+                    conv = tf.nn.conv2d(
+                        norm1,
+                        W,
+                        strides=[1, 1, 1, 1],
+                        padding="VALID",
+                        name=conv_name + "2")
+
+                    print "W2: ", W.get_shape()
+                    print "conv2: ", conv.get_shape()
+
+                    # Apply nonlinearity
+                    h = tf.nn.relu(tf.nn.bias_add(conv, b), name=h_name + "2")
+
+                    # Maxpooling over the outputs
+                    pooled = tf.nn.max_pool(
+                        h,
+                        ksize=[1, h.get_shape()[1], 1, 1],
+                        strides=[1, 1, 1, 1],
+                        padding='VALID',
+                        name=pool_name + "2")
+                    print "pooled2: ", pooled.get_shape()
+
                     pooled_outputs.append(pooled)
 
             # Combine all the pooled features
@@ -113,6 +153,7 @@ class CNN3(object):
             # Add dropout
             with tf.name_scope("dropout-%s" % qid):
                 h_drop = tf.nn.dropout(h_pool_flat, self.dropout_keep_prob)
+
         return h_drop
 
 

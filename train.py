@@ -17,6 +17,7 @@ from models.baseline_nn import BaselineNN
 from models.cnn import CNN
 from models.cnn2 import CNN2
 from models.cnn3 import CNN3
+from models.cnn4 import CNN4
 
 # Parameters
 # ==================================================
@@ -24,10 +25,10 @@ from models.cnn3 import CNN3
 # Data loading params
 tf.flags.DEFINE_float("dev_sample_percentage", .1, "Percentage of the training data to use for validation")
 tf.flags.DEFINE_string("training_data_file", "./training.full.tsv", "Data source for the training data.")
-tf.flags.DEFINE_string("embeddings_file", "./glove.6B/glove.6B.50d.txt", "Data source for the pretrained word embeddings")
+tf.flags.DEFINE_string("embeddings_file", "./glove.6B/glove.6B.100d.txt", "Data source for the pretrained word embeddings")
 
 # Model Hyperparameters
-tf.flags.DEFINE_integer("embedding_dim", 50, "Dimensionality of character embedding (default: 50)")
+tf.flags.DEFINE_integer("embedding_dim", 100, "Dimensionality of character embedding (default: 50)")
 tf.flags.DEFINE_string("filter_sizes", "3,4,5", "Comma-separated filter sizes (default: '3,4,5')")
 tf.flags.DEFINE_integer("num_filters", 128, "Number of filters per filter size (default: 128)")
 tf.flags.DEFINE_float("dropout_keep_prob", 0.5, "Dropout keep probability (default: 0.5)")
