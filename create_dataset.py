@@ -18,7 +18,7 @@ skipped_duplicates = 0
 sentences = 0
 
 lines = []
-with open('quora_duplicate_questions.tsv') as f:
+with open('./data/quora_duplicate_questions.tsv') as f:
 	for line in f:
 		if header:
 			header = False
@@ -71,12 +71,12 @@ test_index = -1 * int(len(lines) * TEST_SIZE) #4000
 training_lines = lines[:test_index]
 test_lines = lines[test_index:]
 
-with open('training.full.tsv', 'w') as fw:
+with open('./data/training.full.tsv', 'w') as fw:
 	for line in training_lines:
 		q1, q2, duplicate = line
 		fw.write('%s\t%s\t%s\n' % (q1, q2, duplicate))
 
-with open('test.full.tsv', 'w') as fw_test:
+with open('./data/test.full.tsv', 'w') as fw_test:
 	for line in test_lines:
 		q1, q2, duplicate = line
 		fw_test.write('%s\t%s\t%s\n' % (q1, q2, duplicate))

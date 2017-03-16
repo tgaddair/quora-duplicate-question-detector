@@ -24,7 +24,7 @@ from models.cnn4 import CNN4
 
 # Data loading params
 tf.flags.DEFINE_float("dev_sample_percentage", .1, "Percentage of the training data to use for validation")
-tf.flags.DEFINE_string("training_data_file", "./training.full.tsv", "Data source for the training data.")
+tf.flags.DEFINE_string("training_data_file", "./data/training.full.tsv", "Data source for the training data.")
 tf.flags.DEFINE_string("embeddings_file", "./glove.6B/glove.6B.100d.txt", "Data source for the pretrained word embeddings")
 
 # Model Hyperparameters

@@ -13,7 +13,7 @@ import csv
 # ==================================================
 
 # Data Parameters
-tf.flags.DEFINE_string("test_data_file", "./test.full.tsv", "Data source for the test data.")
+tf.flags.DEFINE_string("test_data_file", "./data/test.full.tsv", "Data source for the test data.")
 tf.flags.DEFINE_string("embeddings_file", "./glove.6B/glove.6B.50d.txt", "Data source for the pretrained word embeddings")
 
 # Eval Parameters
