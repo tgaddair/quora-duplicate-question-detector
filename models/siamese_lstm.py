@@ -2,7 +2,7 @@ import tensorflow as tf
 import numpy as np
 
 
-class CNN3(object):
+class SiameseLSTM(object):
     """
     A CNN for text classification.
     Uses an embedding layer, followed by a convolutional, max-pooling and softmax layer.
@@ -16,6 +16,8 @@ class CNN3(object):
         self.input_x2 = tf.placeholder(tf.int32, [None, sequence_length], name="input_x2")
         self.input_y = tf.placeholder(tf.float32, [None, num_classes], name="input_y")
         self.dropout_keep_prob = tf.placeholder(tf.float32, name="dropout_keep_prob")
+        self.input_x1_length = tf.placeholder(tf.int32, [None], name="input_x1_length")
+        self.input_x2_length = tf.placeholder(tf.int32, [None], name="input_x2_length")
 
         # Keeping track of l2 regularization loss (optional)
         l2_loss = tf.constant(0.0)
@@ -27,8 +29,8 @@ class CNN3(object):
         embedded_x1 = self.create_embedding(self.input_x1, init_embeddings)
         embedded_x2 = self.create_embedding(self.input_x2, init_embeddings)
 
-        r1 = self.create_tower(embedded_x1, sequence_length, embedding_size, filter_sizes, num_filters, "0", False)
-        r2 = self.create_tower(embedded_x2, sequence_length, embedding_size, filter_sizes, num_filters, "0", True)
+        r1 = self.create_tower(embedded_x1, sequence_length, embedding_size, filter_sizes, num_filters, self.input_x1_length, "0", False)
+        r2 = self.create_tower(embedded_x2, sequence_length, embedding_size, filter_sizes, num_filters, self.input_x2_length, "0", True)
 
         # Final (unnormalized) scores and predictions
         with tf.name_scope("output"):
@@ -57,9 +59,6 @@ class CNN3(object):
 
         # CalculateMean cross-entropy loss
         with tf.name_scope("loss"):
-            # self.y = tf.expand_dims(tf.cast(tf.argmax(self.input_y, 1), tf.float32), -1, name="y")
-            # self.loss = tf.nn.l2_loss(self.scores - self.y)
-
             losses = tf.nn.softmax_cross_entropy_with_logits(self.scores, self.input_y)
             self.loss = tf.reduce_mean(losses) + l2_reg_lambda * l2_loss
 
@@ -70,7 +69,7 @@ class CNN3(object):
             self.accuracy = tf.reduce_mean(tf.cast(self.correct_predictions, "float"), name="accuracy")
 
 
-    def create_tower(self, embeddings, sequence_length, embedding_size, filter_sizes, num_filters, qid, reuse):
+    def create_tower(self, embeddings, sequence_length, embedding_size, filter_sizes, num_filters, x_lengths, qid, reuse):
         W_name = "W" + qid
         b_name = "b" + qid
         h_name = "h" + qid
@@ -78,6 +77,26 @@ class CNN3(object):
         pool_name = "pool" + qid
 
         with tf.variable_scope("inference", reuse=reuse):
+            with tf.name_scope("lstm"):
+                x = embeddings
+
+                # Initial state of the LSTM cell memory
+                state_size = embedding_size
+                cell = tf.nn.rnn_cell.LSTMCell(num_units=state_size, state_is_tuple=True)
+                outputs, states  = tf.nn.bidirectional_dynamic_rnn(
+                    cell_fw=cell,
+                    cell_bw=cell,
+                    dtype=tf.float32,
+                    sequence_length=x_lengths,
+                    inputs=x)
+                 
+                output_fw, output_bw = outputs
+                states_fw, states_bw = states
+
+                encoded = tf.concat(1, [output_fw, output_bw])
+                encoded = tf.expand_dims(encoded, -1)
+                print "encoded: ", encoded.get_shape()
+
             # Create a convolution + maxpool layer for each filter size
             pooled_outputs = []
             for i, filter_size in enumerate(filter_sizes):
@@ -87,7 +106,7 @@ class CNN3(object):
                     W = tf.Variable(tf.truncated_normal(filter_shape, stddev=0.1), name=W_name)
                     b = tf.Variable(tf.constant(0.1, shape=[num_filters]), name=b_name)
                     conv = tf.nn.conv2d(
-                        embeddings,
+                        encoded,
                         W,
                         strides=[1, 1, 1, 1],
                         padding="VALID",
@@ -99,7 +118,7 @@ class CNN3(object):
                     # Maxpooling over the outputs
                     pooled = tf.nn.max_pool(
                         h,
-                        ksize=[1, sequence_length - filter_size + 1, 1, 1],
+                        ksize=[1, 2 * sequence_length - filter_size + 1, 1, 1],
                         strides=[1, 1, 1, 1],
                         padding='VALID',
                         name=pool_name)
@@ -117,8 +136,5 @@ class CNN3(object):
 
 
     def create_embedding(self, x, init_embeddings):
-        lookups = tf.nn.embedding_lookup(init_embeddings, x)
-        # shape = lookups.get_shape().as_list()
-        # embeddings = tf.reshape(lookups, [-1, shape[1] * shape[2]]) 
-        embeddings = tf.expand_dims(lookups, -1)
+        embeddings = tf.nn.embedding_lookup(init_embeddings, x)
         return embeddings

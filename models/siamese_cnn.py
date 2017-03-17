@@ -2,7 +2,7 @@ import tensorflow as tf
 import numpy as np
 
 
-class CNN2(object):
+class SiameseCNN(object):
     """
     A CNN for text classification.
     Uses an embedding layer, followed by a convolutional, max-pooling and softmax layer.
@@ -16,6 +16,11 @@ class CNN2(object):
         self.input_x2 = tf.placeholder(tf.int32, [None, sequence_length], name="input_x2")
         self.input_y = tf.placeholder(tf.float32, [None, num_classes], name="input_y")
         self.dropout_keep_prob = tf.placeholder(tf.float32, name="dropout_keep_prob")
+        self.input_x1_length = tf.placeholder(tf.int32, [None], name="input_x1_length")
+        self.input_x2_length = tf.placeholder(tf.int32, [None], name="input_x2_length")
+
+        # Keeping track of l2 regularization loss (optional)
+        l2_loss = tf.constant(0.0)
 
         # Embedding layer
         init_embeddings = tf.Variable(pretrained_embeddings)
@@ -23,30 +28,39 @@ class CNN2(object):
         
         embedded_x1 = self.create_embedding(self.input_x1, init_embeddings)
         embedded_x2 = self.create_embedding(self.input_x2, init_embeddings)
-        embedded = tf.concat(1, [embedded_x1, embedded_x2])
 
-        r1 = self.create_tower(embedded, 2 * sequence_length, embedding_size, filter_sizes, num_filters, False)
+        r1 = self.create_tower(embedded_x1, sequence_length, embedding_size, filter_sizes, num_filters, "0", False)
+        r2 = self.create_tower(embedded_x2, sequence_length, embedding_size, filter_sizes, num_filters, "0", True)
 
         # Final (unnormalized) scores and predictions
         with tf.name_scope("output"):
-            features = r1
+            features = tf.concat(1, [r1, r2, r1 - r2, tf.multiply(r1, r2)])
             num_filters_total = num_filters * len(filter_sizes)
-            
-            W = tf.get_variable(
+            feature_length = 4 * num_filters_total
+
+            num_hidden = int(np.sqrt(feature_length))
+            W3= tf.get_variable(
                 "W3",
-                shape=[num_filters_total, num_classes],
+                shape=[feature_length, num_hidden],
                 initializer=tf.contrib.layers.xavier_initializer())
-            b = tf.Variable(tf.constant(0.1, shape=[num_classes]), name="b3")
-            self.scores = tf.nn.xw_plus_b(features, W, b, name="scores")
+            b3 = tf.Variable(tf.constant(0.1, shape=[num_hidden]), name="b3")
+            H = tf.nn.relu(tf.nn.xw_plus_b(features, W3, b3, name="hidden"))
+
+            W4 = tf.get_variable(
+                "W4",
+                shape=[num_hidden, num_classes],
+                initializer=tf.contrib.layers.xavier_initializer())
+            b4 = tf.Variable(tf.constant(0.1, shape=[num_classes]), name="b4")
+
+            l2_loss += tf.nn.l2_loss(W4)
+            l2_loss += tf.nn.l2_loss(b4)
+            self.scores = tf.nn.xw_plus_b(H, W4, b4, name="scores")
             self.predictions = tf.argmax(self.scores, 1, name="predictions")
 
         # CalculateMean cross-entropy loss
         with tf.name_scope("loss"):
-            # self.y = tf.expand_dims(tf.cast(tf.argmax(self.input_y, 1), tf.float32), -1, name="y")
-            # self.loss = tf.nn.l2_loss(self.scores - self.y)
-
             losses = tf.nn.softmax_cross_entropy_with_logits(self.scores, self.input_y)
-            self.loss = tf.reduce_mean(losses)
+            self.loss = tf.reduce_mean(losses) + l2_reg_lambda * l2_loss
 
         # Accuracy
         with tf.name_scope("accuracy"):
@@ -55,8 +69,7 @@ class CNN2(object):
             self.accuracy = tf.reduce_mean(tf.cast(self.correct_predictions, "float"), name="accuracy")
 
 
-    def create_tower(self, embeddings, sequence_length, embedding_size, filter_sizes, num_filters, reuse):
-        qid = "0"
+    def create_tower(self, embeddings, sequence_length, embedding_size, filter_sizes, num_filters, qid, reuse):
         W_name = "W" + qid
         b_name = "b" + qid
         h_name = "h" + qid
@@ -89,7 +102,6 @@ class CNN2(object):
                         strides=[1, 1, 1, 1],
                         padding='VALID',
                         name=pool_name)
-
                     pooled_outputs.append(pooled)
 
             # Combine all the pooled features
@@ -105,7 +117,5 @@ class CNN2(object):
 
     def create_embedding(self, x, init_embeddings):
         lookups = tf.nn.embedding_lookup(init_embeddings, x)
-        # shape = lookups.get_shape().as_list()
-        # embeddings = tf.reshape(lookups, [-1, shape[1] * shape[2]]) 
         embeddings = tf.expand_dims(lookups, -1)
         return embeddings

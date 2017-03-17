@@ -14,10 +14,8 @@ from sklearn.metrics import recall_score
 from sklearn.metrics import f1_score
 
 from models.baseline_nn import BaselineNN
-from models.cnn import CNN
-from models.cnn2 import CNN2
-from models.cnn3 import CNN3
-from models.cnn4 import CNN4
+from models.siamese_cnn import SiameseCNN
+from models.siamese_lstm import SiameseLSTM
 
 # Parameters
 # ==================================================
@@ -40,9 +38,12 @@ tf.flags.DEFINE_integer("num_epochs", 200, "Number of training epochs (default: 
 tf.flags.DEFINE_integer("evaluate_every", 100, "Evaluate model on dev set after this many steps (default: 100)")
 tf.flags.DEFINE_integer("checkpoint_every", 100, "Save model after this many steps (default: 100)")
 tf.flags.DEFINE_integer("num_checkpoints", 5, "Number of checkpoints to store (default: 5)")
+
 # Misc Parameters
 tf.flags.DEFINE_boolean("allow_soft_placement", True, "Allow device soft device placement")
 tf.flags.DEFINE_boolean("log_device_placement", False, "Log placement of ops on devices")
+tf.flags.DEFINE_boolean("use_cached_embeddings", False, "Cache embeddings locally on disk for repeated runs")
+
 
 FLAGS = tf.flags.FLAGS
 FLAGS._parse_flags()
@@ -57,7 +58,7 @@ print("")
 
 # Load data
 print("Loading data...")
-q1, q2, y = data_helpers.load_data_and_labels(FLAGS.training_data_file)
+q1, q2, y, q1_lengths, q2_lengths = data_helpers.load_data_and_labels(FLAGS.training_data_file)
 
 # Build vocabulary
 max_question_length = max(max([len(x.split(" ")) for x in q1]), max([len(x.split(" ")) for x in q2]))
@@ -70,21 +71,31 @@ x1 = x[:len(q1)]
 x2 = x[len(q1):]
 
 # Create word embeddings
+print "Loading word embeddings..."
 vocab_dict = vocab_processor.vocabulary_._mapping
-pretrained_embeddings = data_helpers.load_embeddings(FLAGS.embeddings_file, vocab_dict, FLAGS.embedding_dim)
+pretrained_embeddings = data_helpers.load_embeddings(FLAGS.embeddings_file,
+                                                     vocab_dict,
+                                                     FLAGS.embedding_dim,
+                                                     FLAGS.use_cached_embeddings)
 
 # Randomly shuffle data
+print "Shuffling data..."
 np.random.seed(10)
 shuffle_indices = np.random.permutation(np.arange(len(y)))
 x1_shuffled = x1[shuffle_indices]
 x2_shuffled = x2[shuffle_indices]
 y_shuffled = y[shuffle_indices]
+q1_lengths_shuffled = q1_lengths[shuffle_indices]
+q2_lengths_shuffled = q2_lengths[shuffle_indices]
 
 # Split train/test set
+print "Splitting training/dev..."
 dev_sample_index = -1 * int(FLAGS.dev_sample_percentage * float(len(y)))
 x1_train, x1_dev = x1_shuffled[:dev_sample_index], x1_shuffled[dev_sample_index:]
 x2_train, x2_dev = x2_shuffled[:dev_sample_index], x2_shuffled[dev_sample_index:]
 y_train, y_dev = y_shuffled[:dev_sample_index], y_shuffled[dev_sample_index:]
+x1_lengths_train, x1_lengths_dev = q1_lengths_shuffled[:dev_sample_index], q1_lengths_shuffled[dev_sample_index:]
+x2_lengths_train, x2_lengths_dev = q2_lengths_shuffled[:dev_sample_index], q2_lengths_shuffled[dev_sample_index:]
 print("Vocabulary Size: {:d}".format(len(vocab_processor.vocabulary_)))
 print("Train/Dev split: {:d}/{:d}".format(len(y_train), len(y_dev)))
 
@@ -103,7 +114,7 @@ with tf.Graph().as_default():
         #     num_classes=y_train.shape[1],
         #     pretrained_embeddings=pretrained_embeddings)
 
-        cnn = CNN3(
+        cnn = SiameseLSTM(
             sequence_length=x1_train.shape[1],
             num_classes=y_train.shape[1],
             pretrained_embeddings=pretrained_embeddings,
@@ -159,7 +170,7 @@ with tf.Graph().as_default():
         # Initialize all variables
         sess.run(tf.global_variables_initializer())
 
-        def train_step(x1_batch, x2_batch, y_batch, epoch):
+        def train_step(x1_batch, x2_batch, y_batch, x1_lengths_batch, x2_lengths_batch, epoch):
             """
             A single training step
             """
@@ -167,7 +178,9 @@ with tf.Graph().as_default():
               cnn.input_x1: x1_batch,
               cnn.input_x2: x2_batch,
               cnn.input_y: y_batch,
-              cnn.dropout_keep_prob: FLAGS.dropout_keep_prob
+              cnn.dropout_keep_prob: FLAGS.dropout_keep_prob,
+              cnn.input_x1_length: x1_lengths_batch,
+              cnn.input_x2_length: x2_lengths_batch,
             }
             _, step, summaries, loss, accuracy, scores, predictions, y_truth = sess.run(
                 [train_op, global_step, train_summary_op, cnn.loss, cnn.accuracy, cnn.scores, cnn.predictions, cnn.y_truth],
@@ -185,7 +198,7 @@ with tf.Graph().as_default():
             # print "y: ", y
             train_summary_writer.add_summary(summaries, step)
 
-        def dev_step(x1_batch, x2_batch, y_batch, epoch, writer=None):
+        def dev_step(x1_batch, x2_batch, y_batch, x1_lengths_batch, x2_lengths_batch, epoch, writer=None):
             """
             Evaluates model on a dev set
             """
@@ -193,7 +206,9 @@ with tf.Graph().as_default():
               cnn.input_x1: x1_batch,
               cnn.input_x2: x2_batch,
               cnn.input_y: y_batch,
-              cnn.dropout_keep_prob: 1.0
+              cnn.dropout_keep_prob: 1.0,
+              cnn.input_x1_length: x1_lengths_batch,
+              cnn.input_x2_length: x2_lengths_batch,
             }
             step, summaries, loss, accuracy, scores, predictions, y_truth = sess.run(
                 [global_step, dev_summary_op, cnn.loss, cnn.accuracy, cnn.scores, cnn.predictions, cnn.y_truth],
@@ -213,7 +228,7 @@ with tf.Graph().as_default():
                 writer.add_summary(summaries, step)
 
         # Training loop. For each batch...
-        dataset = list(zip(x1_train, x2_train, y_train))
+        dataset = list(zip(x1_train, x2_train, y_train, x1_lengths_train, x2_lengths_train))
         for epoch in range(FLAGS.num_epochs):
             print "\n\n##########################"
             print "# Epoch: ", epoch
@@ -222,12 +237,12 @@ with tf.Graph().as_default():
             # Generate batches
             batches = data_helpers.batch_iter(dataset, FLAGS.batch_size)
             for batch in batches:
-                x1_batch, x2_batch, y_batch = zip(*batch)
-                train_step(x1_batch, x2_batch, y_batch, epoch)
+                x1_batch, x2_batch, y_batch, x1_lengths_batch, x2_lengths_batch = zip(*batch)
+                train_step(x1_batch, x2_batch, y_batch, x1_lengths_batch, x2_lengths_batch, epoch)
                 current_step = tf.train.global_step(sess, global_step)
                 if current_step % FLAGS.evaluate_every == 0:
                     print("\nEvaluation:")
-                    dev_step(x1_dev, x2_dev, y_dev, epoch, writer=dev_summary_writer)
+                    dev_step(x1_dev, x2_dev, y_dev, x1_lengths_dev, x2_lengths_dev, epoch, writer=dev_summary_writer)
                     print("")
                 if current_step % FLAGS.checkpoint_every == 0:
                     path = saver.save(sess, checkpoint_prefix, global_step=current_step)

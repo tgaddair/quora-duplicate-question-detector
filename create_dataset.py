@@ -67,23 +67,23 @@ with open('./data/quora_duplicate_questions.tsv') as f:
 		print elements
 		sentences += 1
 
-test_index = -1 * int(len(lines) * TEST_SIZE) #4000
+test_index = -1 * int(len(lines) * TEST_SIZE)
 training_lines = lines[:test_index]
 test_lines = lines[test_index:]
 
 with open('./data/training.full.tsv', 'w') as fw:
 	for line in training_lines:
 		q1, q2, duplicate = line
-		fw.write('%s\t%s\t%s\n' % (q1, q2, duplicate))
+		fw.write('%s\t%s\t%s\n' % (duplicate, q1, q2))
 
 with open('./data/test.full.tsv', 'w') as fw_test:
 	for line in test_lines:
 		q1, q2, duplicate = line
-		fw_test.write('%s\t%s\t%s\n' % (q1, q2, duplicate))
+		fw_test.write('%s\t%s\t%s\n' % (duplicate, q1, q2))
 
 
 print "training: ", len(training_lines)
 print "test: ", len(test_lines)
 print "%s (%d)" % (max_sentence, max_length)
 print "duplicates: %d (%.2f)" % (duplicates, ((1.0 * duplicates) / sentences))
-print "skipped: %d (%d)" % (skipped, len(skipped_duplicates))
+print "skipped: %d (%d)" % (skipped, skipped_duplicates)

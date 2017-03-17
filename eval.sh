@@ -10,5 +10,11 @@ RUN="1489643981"  # cnn twitter 200d 400K training -> 0.802677
 vectors="./glove.6B/glove.6B.100d.txt"
 vectors="./glove.twitter.27B/glove.twitter.27B.200d.txt"
 
+test_data="./data/test.full.tsv"
+#test_data="./Quora_question_pair_partition/test.tsv"
+
 # tensorboard --logdir ./runs/${RUN}/summaries/
-python eval.py --checkpoint_dir="runs/${RUN}/checkpoints" --embeddings_file="${vectors}"
+python eval.py \
+    --test_data_file="${test_data}" \
+    --checkpoint_dir="runs/${RUN}/checkpoints" \
+    --embeddings_file="${vectors}"

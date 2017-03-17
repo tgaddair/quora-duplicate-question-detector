@@ -1,6 +1,7 @@
 import numpy as np
 import re
 import itertools
+import os.path
 from collections import Counter
 from collections import OrderedDict
 import logging
@@ -46,14 +47,27 @@ def load_data_and_labels(training_data_file):
     q1 = []
     q2 = []
     labels = []
+    q1_lengths = []
+    q2_lengths = []
     for line in training_data:
         elements = line.split('\t')
-        q1.append(elements[0])
-        q2.append(elements[1])
-        labels.append([0, 1] if elements[2] == '1' else [1, 0])
+
+        q1_length = len(elements[1].split())
+        q2_length = len(elements[2].split())
+        if q1_length > 59 or q2_length > 59:
+            continue
+
+        q1.append(elements[1].lower())
+        q2.append(elements[2].lower())
+        labels.append([0, 1] if elements[0] == '1' else [1, 0])
+        q1_lengths.append(q1_length)
+        q2_lengths.append(q2_length)
 
     labels = np.concatenate([labels], 0)
-    return [q1, q2, labels]
+    q1_lengths = np.concatenate([q1_lengths], 0)
+    q2_lengths = np.concatenate([q2_lengths], 0)
+
+    return [q1, q2, labels, q1_lengths, q2_lengths]
 
 
 def batch_iter(data, batch_size, shuffle=True):
@@ -99,12 +113,19 @@ def normalize(word):
     return word.lower()
 
 
-def load_embeddings(embeddings_file, vocab_dict, embedding_dim):
+def load_embeddings(embeddings_file, vocab_dict, embedding_dim, use_cache=True):
+    embeddings_cache_file = embeddings_file + ".cache.npy"
+    if use_cache and os.path.isfile(embeddings_cache_file):
+        embeddings = np.load(embeddings_cache_file)
+        return embeddings
+
     embeddings = np.array(np.random.randn(len(vocab_dict) + 1, embedding_dim), dtype=np.float32)
     embeddings[0] = 0.
     for word, vec in load_word_vector_mapping(embeddings_file).items():
         word = normalize(word)
         if word in vocab_dict:
             embeddings[vocab_dict[word]] = vec
+
+    np.save(embeddings_cache_file, embeddings)
     logger.info("Initialized embeddings.")
     return embeddings
