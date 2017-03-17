@@ -28,7 +28,7 @@ tf.flags.DEFINE_string("embeddings_file", "./glove.6B/glove.6B.100d.txt", "Data 
 # Model Hyperparameters
 tf.flags.DEFINE_integer("embedding_dim", 100, "Dimensionality of character embedding (default: 50)")
 tf.flags.DEFINE_string("filter_sizes", "3,4,5", "Comma-separated filter sizes (default: '3,4,5')")
-tf.flags.DEFINE_integer("num_filters", 128, "Number of filters per filter size (default: 128)")
+tf.flags.DEFINE_integer("num_filters", 256, "Number of filters per filter size (default: 128)")
 tf.flags.DEFINE_float("dropout_keep_prob", 0.5, "Dropout keep probability (default: 0.5)")
 tf.flags.DEFINE_float("l2_reg_lambda", 0.0, "L2 regularization lambda (default: 0.0)")
 
@@ -42,7 +42,7 @@ tf.flags.DEFINE_integer("num_checkpoints", 5, "Number of checkpoints to store (d
 # Misc Parameters
 tf.flags.DEFINE_boolean("allow_soft_placement", True, "Allow device soft device placement")
 tf.flags.DEFINE_boolean("log_device_placement", False, "Log placement of ops on devices")
-tf.flags.DEFINE_boolean("use_cached_embeddings", False, "Cache embeddings locally on disk for repeated runs")
+tf.flags.DEFINE_boolean("use_cached_embeddings", True, "Cache embeddings locally on disk for repeated runs")
 
 
 FLAGS = tf.flags.FLAGS
@@ -67,8 +67,16 @@ print "max_question_length: ", max_question_length
 
 x_text = q1 + q2
 x = np.array(list(vocab_processor.fit_transform(x_text)))
-x1 = x[:len(q1)]
-x2 = x[len(q1):]
+x1_sliced = x[:len(q1)]
+x2_sliced = x[len(q1):]
+
+# The models are not perfectly symmetric in the combination layer, so we can flip the order of the
+# questions to synthesize additional training examples
+x1 = np.concatenate((x1_sliced, x2_sliced), axis=0)
+x2 = np.concatenate((x2_sliced, x1_sliced), axis=0)
+y = np.concatenate((y, y), axis=0)
+x1_lengths = np.concatenate((q1_lengths, q2_lengths), axis=0)
+x2_lengths = np.concatenate((q2_lengths, q1_lengths), axis=0)
 
 # Create word embeddings
 print "Loading word embeddings..."
@@ -85,8 +93,8 @@ shuffle_indices = np.random.permutation(np.arange(len(y)))
 x1_shuffled = x1[shuffle_indices]
 x2_shuffled = x2[shuffle_indices]
 y_shuffled = y[shuffle_indices]
-q1_lengths_shuffled = q1_lengths[shuffle_indices]
-q2_lengths_shuffled = q2_lengths[shuffle_indices]
+q1_lengths_shuffled = x1_lengths[shuffle_indices]
+q2_lengths_shuffled = x2_lengths[shuffle_indices]
 
 # Split train/test set
 print "Splitting training/dev..."
@@ -114,7 +122,7 @@ with tf.Graph().as_default():
         #     num_classes=y_train.shape[1],
         #     pretrained_embeddings=pretrained_embeddings)
 
-        cnn = SiameseLSTM(
+        cnn = SiameseCNN(
             sequence_length=x1_train.shape[1],
             num_classes=y_train.shape[1],
             pretrained_embeddings=pretrained_embeddings,

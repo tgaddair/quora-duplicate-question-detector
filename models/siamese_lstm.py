@@ -93,8 +93,7 @@ class SiameseLSTM(object):
                 output_fw, output_bw = outputs
                 states_fw, states_bw = states
 
-                encoded = tf.concat(1, [output_fw, output_bw])
-                encoded = tf.expand_dims(encoded, -1)
+                encoded = tf.stack([output_fw, output_bw], axis=3)
                 print "encoded: ", encoded.get_shape()
 
             # Create a convolution + maxpool layer for each filter size
@@ -102,7 +101,7 @@ class SiameseLSTM(object):
             for i, filter_size in enumerate(filter_sizes):
                 with tf.name_scope("conv-maxpool-%s-%s" % (qid, filter_size)):
                     # Convolution Layer
-                    filter_shape = [filter_size, embedding_size, 1, num_filters]
+                    filter_shape = [filter_size, embedding_size, 2, num_filters]
                     W = tf.Variable(tf.truncated_normal(filter_shape, stddev=0.1), name=W_name)
                     b = tf.Variable(tf.constant(0.1, shape=[num_filters]), name=b_name)
                     conv = tf.nn.conv2d(
@@ -118,7 +117,7 @@ class SiameseLSTM(object):
                     # Maxpooling over the outputs
                     pooled = tf.nn.max_pool(
                         h,
-                        ksize=[1, 2 * sequence_length - filter_size + 1, 1, 1],
+                        ksize=[1, sequence_length - filter_size + 1, 1, 1],
                         strides=[1, 1, 1, 1],
                         padding='VALID',
                         name=pool_name)

@@ -35,7 +35,7 @@ print("")
 
 # Load data
 print("Loading data...")
-q1, q2, y = data_helpers.load_data_and_labels(FLAGS.test_data_file)
+q1, q2, y, q1_lengths, q2_lengths = data_helpers.load_data_and_labels(FLAGS.test_data_file)
 x_raw = q1 + q2
 
 # Build vocabulary
@@ -69,19 +69,27 @@ with graph.as_default():
         input_x2 = graph.get_operation_by_name("input_x2").outputs[0]
         # input_y = graph.get_operation_by_name("input_y").outputs[0]
         dropout_keep_prob = graph.get_operation_by_name("dropout_keep_prob").outputs[0]
+        input_x1_length = graph.get_operation_by_name("input_x1_length").outputs[0]
+        input_x2_length = graph.get_operation_by_name("input_x2_length").outputs[0]
 
         # Tensors we want to evaluate
         predictions = graph.get_operation_by_name("output/predictions").outputs[0]
 
         # Generate batches for one epoch
-        batches = data_helpers.batch_iter(list(zip(x1_test, x2_test)), FLAGS.batch_size, shuffle=False)
+        batches = data_helpers.batch_iter(list(zip(x1_test, x2_test, q1_lengths, q2_lengths)), FLAGS.batch_size, shuffle=False)
 
         # Collect the predictions here
         all_predictions = []
 
         for batch in batches:
-            x1_batch, x2_batch = zip(*batch)
-            batch_predictions = sess.run(predictions, {input_x1: x1_batch, input_x2: x2_batch, dropout_keep_prob: 1.0})
+            x1_batch, x2_batch, x1_length_batch, x2_length_batch = zip(*batch)
+            batch_predictions = sess.run(predictions, {
+                input_x1: x1_batch,
+                input_x2: x2_batch,
+                dropout_keep_prob: 1.0,
+                input_x1_length: x1_length_batch,
+                input_x2_length: x2_length_batch
+            })
             all_predictions = np.concatenate([all_predictions, batch_predictions])
 
 # Print accuracy if y_test is defined

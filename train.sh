@@ -4,15 +4,15 @@
 d=200
 #d=300
 
-#s=.04
-s=.1
+s=.04
+#s=.1
 
 lambda=0.0
 #lambda=0.1
 #lambda=1.0
 
-set="dev"
-#set="full"
+#set="dev"
+set="full"
 
 #word_vectors="./glove.6B/glove.6B.${d}d.txt"
 word_vectors="./glove.twitter.27B/glove.twitter.27B.${d}d.txt"

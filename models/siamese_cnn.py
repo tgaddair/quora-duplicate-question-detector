@@ -34,7 +34,7 @@ class SiameseCNN(object):
 
         # Final (unnormalized) scores and predictions
         with tf.name_scope("output"):
-            features = tf.concat(1, [r1, r2, r1 - r2, tf.multiply(r1, r2)])
+            features = tf.concat(1, [r1, r2, tf.abs(r1 - r2), tf.multiply(r1, r2)])
             num_filters_total = num_filters * len(filter_sizes)
             feature_length = 4 * num_filters_total
 
