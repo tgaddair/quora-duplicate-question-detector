@@ -16,6 +16,7 @@ from sklearn.metrics import f1_score
 from models.baseline_nn import BaselineNN
 from models.siamese_cnn import SiameseCNN
 from models.siamese_lstm import SiameseLSTM
+from models.siamese_lstm_cnn import SiameseLSTMCNN
 
 # Parameters
 # ==================================================
@@ -58,7 +59,7 @@ print("")
 
 # Load data
 print("Loading data...")
-q1, q2, y, q1_lengths, q2_lengths = data_helpers.load_data_and_labels(FLAGS.training_data_file)
+q1, q2, y, x1_lengths, x2_lengths = data_helpers.load_data_and_labels(FLAGS.training_data_file)
 
 # Build vocabulary
 max_question_length = max(max([len(x.split(" ")) for x in q1]), max([len(x.split(" ")) for x in q2]))
@@ -67,16 +68,16 @@ print "max_question_length: ", max_question_length
 
 x_text = q1 + q2
 x = np.array(list(vocab_processor.fit_transform(x_text)))
-x1_sliced = x[:len(q1)]
-x2_sliced = x[len(q1):]
+x1 = x[:len(q1)]
+x2 = x[len(q1):]
 
 # The models are not perfectly symmetric in the combination layer, so we can flip the order of the
 # questions to synthesize additional training examples
-x1 = np.concatenate((x1_sliced, x2_sliced), axis=0)
-x2 = np.concatenate((x2_sliced, x1_sliced), axis=0)
-y = np.concatenate((y, y), axis=0)
-x1_lengths = np.concatenate((q1_lengths, q2_lengths), axis=0)
-x2_lengths = np.concatenate((q2_lengths, q1_lengths), axis=0)
+# x1 = np.concatenate((x1_sliced, x2_sliced), axis=0)
+# x2 = np.concatenate((x2_sliced, x1_sliced), axis=0)
+# y = np.concatenate((y, y), axis=0)
+# x1_lengths = np.concatenate((q1_lengths, q2_lengths), axis=0)
+# x2_lengths = np.concatenate((q2_lengths, q1_lengths), axis=0)
 
 # Create word embeddings
 print "Loading word embeddings..."
@@ -122,7 +123,7 @@ with tf.Graph().as_default():
         #     num_classes=y_train.shape[1],
         #     pretrained_embeddings=pretrained_embeddings)
 
-        cnn = SiameseCNN(
+        cnn = SiameseLSTM(
             sequence_length=x1_train.shape[1],
             num_classes=y_train.shape[1],
             pretrained_embeddings=pretrained_embeddings,

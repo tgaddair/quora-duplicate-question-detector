@@ -2,7 +2,7 @@ import tensorflow as tf
 import numpy as np
 
 
-class SiameseLSTM(object):
+class SiameseLSTMCNN(object):
     """
     A CNN for text classification.
     Uses an embedding layer, followed by a convolutional, max-pooling and softmax layer.
@@ -36,7 +36,7 @@ class SiameseLSTM(object):
         with tf.name_scope("output"):
             features = tf.concat(1, [r1, r2, r1 - r2, tf.multiply(r1, r2)])
             num_filters_total = num_filters * len(filter_sizes)
-            feature_length = 4 * r1.get_shape().as_list()[1]
+            feature_length = 4 * num_filters_total
 
             num_hidden = int(np.sqrt(feature_length))
             W3= tf.get_variable(
@@ -81,7 +81,7 @@ class SiameseLSTM(object):
                 x = embeddings
 
                 # Initial state of the LSTM cell memory
-                state_size = 5
+                state_size = embedding_size
                 cell = tf.nn.rnn_cell.LSTMCell(num_units=state_size, state_is_tuple=True)
                 outputs, states  = tf.nn.bidirectional_dynamic_rnn(
                     cell_fw=cell,
@@ -94,12 +94,43 @@ class SiameseLSTM(object):
                 states_fw, states_bw = states
 
                 encoded = tf.stack([output_fw, output_bw], axis=3)
-                encoded = tf.concat(3, encoded)
-                encoded = tf.reshape(encoded, [-1, sequence_length * state_size * 2])
+                print "encoded: ", encoded.get_shape()
+
+            # Create a convolution + maxpool layer for each filter size
+            pooled_outputs = []
+            for i, filter_size in enumerate(filter_sizes):
+                with tf.name_scope("conv-maxpool-%s-%s" % (qid, filter_size)):
+                    # Convolution Layer
+                    filter_shape = [filter_size, embedding_size, 2, num_filters]
+                    W = tf.Variable(tf.truncated_normal(filter_shape, stddev=0.1), name=W_name)
+                    b = tf.Variable(tf.constant(0.1, shape=[num_filters]), name=b_name)
+                    conv = tf.nn.conv2d(
+                        encoded,
+                        W,
+                        strides=[1, 1, 1, 1],
+                        padding="VALID",
+                        name=conv_name)
+
+                    # Apply nonlinearity
+                    h = tf.nn.relu(tf.nn.bias_add(conv, b), name=h_name)
+
+                    # Maxpooling over the outputs
+                    pooled = tf.nn.max_pool(
+                        h,
+                        ksize=[1, sequence_length - filter_size + 1, 1, 1],
+                        strides=[1, 1, 1, 1],
+                        padding='VALID',
+                        name=pool_name)
+                    pooled_outputs.append(pooled)
+
+            # Combine all the pooled features
+            num_filters_total = num_filters * len(filter_sizes)
+            h_pool = tf.concat(3, pooled_outputs)
+            h_pool_flat = tf.reshape(h_pool, [-1, num_filters_total])
 
             # Add dropout
             with tf.name_scope("dropout-%s" % qid):
-                h_drop = tf.nn.dropout(encoded, self.dropout_keep_prob)
+                h_drop = tf.nn.dropout(h_pool_flat, self.dropout_keep_prob)
         return h_drop
 
 
