@@ -14,7 +14,7 @@ logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
 NUM = "<NUM>"
 
 
-def clean_str(string):
+def clean_str(string, lower=True):
     """
     Tokenization/string cleaning for all datasets except for SST.
     Original taken from https://github.com/yoonkim/CNN_sentence/blob/master/process_data.py
@@ -32,7 +32,11 @@ def clean_str(string):
     string = re.sub(r"\)", " ) ", string)
     string = re.sub(r"\?", " ? ", string)
     string = re.sub(r"\s{2,}", " ", string)
-    return string.strip().lower()
+
+    result = string.strip()
+    if lower:
+        result = result.lower()
+    return result
 
 
 def load_data_and_labels(training_data_file):

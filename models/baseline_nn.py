@@ -15,6 +15,8 @@ class BaselineNN(object):
         self.input_x2 = tf.placeholder(tf.int32, [None, sequence_length], name="input_x2")
         self.input_y = tf.placeholder(tf.float32, [None, num_classes], name="input_y")
         self.dropout_keep_prob = tf.placeholder(tf.float32, name="dropout_keep_prob")
+        self.input_x1_length = tf.placeholder(tf.int32, [None], name="input_x1_length")
+        self.input_x2_length = tf.placeholder(tf.int32, [None], name="input_x2_length")
 
         # Embedding layer
         init_embeddings = tf.Variable(pretrained_embeddings)
@@ -22,9 +24,9 @@ class BaselineNN(object):
         embedded_x1 = tf.nn.embedding_lookup(init_embeddings, self.input_x1)
         embedded_x2 = tf.nn.embedding_lookup(init_embeddings, self.input_x2)
 
-        features_x1 = tf.reduce_mean(embedded_x1, axis=1)
-        features_x2 = tf.reduce_mean(embedded_x2, axis=1)
-        features = tf.abs(features_x1 - features_x2)
+        r1 = tf.reduce_mean(embedded_x1, axis=1)
+        r2 = tf.reduce_mean(embedded_x2, axis=1)
+        features = tf.concat(1, [r1, r2, r1 - r2, tf.multiply(r1, r2)])
 
         logits = tf.contrib.layers.fully_connected(features, num_classes, activation_fn=None) 
         pred = tf.nn.softmax(logits)
@@ -41,5 +43,6 @@ class BaselineNN(object):
 
         # Accuracy
         with tf.name_scope("accuracy"):
+            self.y_truth = tf.argmax(self.input_y, 1, name="y_truth")
             correct_predictions = tf.equal(self.predictions, tf.argmax(self.input_y, 1))
             self.accuracy = tf.reduce_mean(tf.cast(correct_predictions, "float"), name="accuracy")

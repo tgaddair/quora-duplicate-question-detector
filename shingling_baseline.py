@@ -4,7 +4,7 @@ from nltk import ngrams
 import data_helpers
 
 
-tf.flags.DEFINE_string("training_data_file", "./training.dev.tsv", "Data source for the training data.")
+tf.flags.DEFINE_string("training_data_file", "./data/test.full.tsv", "Data source for the training data.")
 
 
 shingles = [1, 2, 3, 4]
@@ -23,12 +23,13 @@ print("")
 
 # Load data
 print("Loading data...")
-x1, x2, y_truth = data_helpers.load_data_and_labels(FLAGS.training_data_file)
+x1, x2, y_truth, x1_lengths, x2_lengths = data_helpers.load_data_and_labels(FLAGS.training_data_file)
 dataset = list(zip(x1, x2, y_truth))
 
 best_t = 0
 best_accuracy = 0
-for t in np.arange(0.05, 0.35, 0.01):
+# for t in np.arange(0.05, 0.35, 0.01):
+for t in [ 0.13 ]:
 	correct = 0
 	positive_predictions = 0
 	tp = 0

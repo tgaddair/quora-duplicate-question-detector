@@ -118,18 +118,18 @@ with tf.Graph().as_default():
       log_device_placement=FLAGS.log_device_placement)
     sess = tf.Session(config=session_conf)
     with sess.as_default():
-        # cnn = BaselineNN(
-        #     sequence_length=x1_train.shape[1],
-        #     num_classes=y_train.shape[1],
-        #     pretrained_embeddings=pretrained_embeddings)
-
-        cnn = SiameseLSTM(
+        cnn = BaselineNN(
             sequence_length=x1_train.shape[1],
             num_classes=y_train.shape[1],
-            pretrained_embeddings=pretrained_embeddings,
-            filter_sizes=list(map(int, FLAGS.filter_sizes.split(","))),
-            num_filters=FLAGS.num_filters,
-            l2_reg_lambda=FLAGS.l2_reg_lambda)
+            pretrained_embeddings=pretrained_embeddings)
+
+        # cnn = SiameseLSTM(
+        #     sequence_length=x1_train.shape[1],
+        #     num_classes=y_train.shape[1],
+        #     pretrained_embeddings=pretrained_embeddings,
+        #     filter_sizes=list(map(int, FLAGS.filter_sizes.split(","))),
+        #     num_filters=FLAGS.num_filters,
+        #     l2_reg_lambda=FLAGS.l2_reg_lambda)
 
         # Define Training procedure
         global_step = tf.Variable(0, name="global_step", trainable=False)

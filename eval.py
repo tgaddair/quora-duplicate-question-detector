@@ -9,6 +9,10 @@ import data_helpers
 from tensorflow.contrib import learn
 import csv
 
+from sklearn.metrics import precision_score
+from sklearn.metrics import recall_score
+from sklearn.metrics import f1_score
+
 # Parameters
 # ==================================================
 
@@ -95,8 +99,17 @@ with graph.as_default():
 # Print accuracy if y_test is defined
 if y_test is not None:
     correct_predictions = float(sum(all_predictions == y_test))
+
+    labels = [0, 1]
+    precision = precision_score(y_test, all_predictions, labels)
+    recall = recall_score(y_test, all_predictions, labels)
+    f1 = f1_score(y_test, all_predictions, labels)
+
     print("Total number of test examples: {}".format(len(y_test)))
-    print("Accuracy: {:g}".format(correct_predictions/float(len(y_test))))
+    print("Accuracy: {:.4f}".format(correct_predictions/float(len(y_test))))
+    print("Precision: {:.4f}".format(precision))
+    print("Recall: {:.4f}".format(recall))
+    print("F1: {:.4f}".format(f1))
 
 # Save the evaluation to a csv
 predictions_human_readable = np.column_stack((np.array(q1), np.array(q2), [int(x) for x in all_predictions], np.array(y_test)))

@@ -38,23 +38,32 @@ class SiameseLSTM(object):
             num_filters_total = num_filters * len(filter_sizes)
             feature_length = 4 * r1.get_shape().as_list()[1]
 
-            num_hidden = int(np.sqrt(feature_length))
+            num_hidden1 = 256  #int(np.sqrt(feature_length))
+            num_hidden2 = 256  #int(np.sqrt(feature_length))
+
             W3= tf.get_variable(
                 "W3",
-                shape=[feature_length, num_hidden],
+                shape=[feature_length, num_hidden1],
                 initializer=tf.contrib.layers.xavier_initializer())
-            b3 = tf.Variable(tf.constant(0.1, shape=[num_hidden]), name="b3")
-            H = tf.nn.relu(tf.nn.xw_plus_b(features, W3, b3, name="hidden"))
+            b3 = tf.Variable(tf.constant(0.1, shape=[num_hidden1]), name="b3")
+            H3 = tf.nn.relu(tf.nn.xw_plus_b(features, W3, b3, name="hidden"))
 
             W4 = tf.get_variable(
                 "W4",
-                shape=[num_hidden, num_classes],
+                shape=[num_hidden1, num_hidden2],
                 initializer=tf.contrib.layers.xavier_initializer())
-            b4 = tf.Variable(tf.constant(0.1, shape=[num_classes]), name="b4")
+            b4 = tf.Variable(tf.constant(0.1, shape=[num_hidden2]), name="b4")
+            H4 = tf.nn.relu(tf.nn.xw_plus_b(H3, W4, b4, name="hidden"))
 
-            l2_loss += tf.nn.l2_loss(W4)
-            l2_loss += tf.nn.l2_loss(b4)
-            self.scores = tf.nn.xw_plus_b(H, W4, b4, name="scores")
+            W5 = tf.get_variable(
+                "W5",
+                shape=[num_hidden2, num_classes],
+                initializer=tf.contrib.layers.xavier_initializer())
+            b5 = tf.Variable(tf.constant(0.1, shape=[num_classes]), name="b5")
+
+            l2_loss += tf.nn.l2_loss(W5)
+            l2_loss += tf.nn.l2_loss(b5)
+            self.scores = tf.nn.xw_plus_b(H4, W5, b5, name="scores")
             self.predictions = tf.argmax(self.scores, 1, name="predictions")
 
         # CalculateMean cross-entropy loss
@@ -82,7 +91,9 @@ class SiameseLSTM(object):
 
                 # Initial state of the LSTM cell memory
                 state_size = 5
+                num_layers = 3
                 cell = tf.nn.rnn_cell.LSTMCell(num_units=state_size, state_is_tuple=True)
+                cell = tf.nn.rnn_cell.MultiRNNCell([cell] * num_layers, state_is_tuple=True)
                 outputs, states  = tf.nn.bidirectional_dynamic_rnn(
                     cell_fw=cell,
                     cell_bw=cell,
